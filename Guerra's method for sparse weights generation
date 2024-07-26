@@ -1,0 +1,35 @@
+##### Algo II: Sparse Weights #####
+guerra_algo_II = function(seed = 20231205,nvar = 5,n = 100,k = 2,sparsity = .25,vaf = .75) {
+  set.seed(seed)
+  # Generate X.init
+  X.init = as.matrix(sapply(1:nvar,function(i) rnorm(n)))
+  # Obtain SVD
+  X.init.svd = svd(X.init,nu = k,nv = k)
+  # Sparsify V
+  ## get rank
+  X.init.v_rank = matrix(rank(abs(X.init.svd$v)),ncol = k)
+  ## Replace abs value of V by zero based on sparsity
+  V = ifelse(X.init.v_rank > floor(max(X.init.v_rank)*sparsity),X.init.svd$v,0)
+  # Normalise V
+  V = sweep(V, 2, colSums(V), FUN="/")
+  # Keep track of true loading sparsity
+  keepX = sapply(1:ncol(V),function(i) sum(V[,i] != 0))
+  keepX = ifelse(keepX == 0,ncol(X.init),keepX)
+  # Obtain PC
+  PC = X.init %*% V
+  # Calculate P
+  P = t(MASS::ginv(PC) %*% X.init)
+  # Obtain X.sparse
+  ## Generate E
+  E = as.matrix(sapply(1:nvar,function(i) rnorm(n)))
+  ## Calculate f
+  ### Solve equation
+  f.func = function(f) {
+    (norm(PC %*% t(P),"2")^2 / (norm(PC %*% t(P),"2")^2 + (f^2)*norm(E,"2")^2)) - vaf
+  }
+  ### uniroot it
+  f = uniroot(f.func,interval = c(0,1e+08))$root
+  ## Return X.sparse
+  X.sparse = X.init %*% (V %*% t(P)) + (f*E)
+  return(list(R = X.sparse,Gram = cor(X.sparse),X = 1/sqrt(n)*scale(X.sparse),keepX = keepX,V = V,P = P,SPC = PC))
+}
